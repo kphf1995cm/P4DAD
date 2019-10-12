@@ -8,6 +8,8 @@ const bit<8> NH_ICMPv6 = 58;
 const bit<8> TYPE_NS = 135;
 const bit<8> TYPE_NA = 136;
 
+const bit<48> MULTICAST_ADDR =0x3333ff9088e1;
+
 const bit<8> ADDR_IDLE=0;
 const bit<8> ADDR_TENTATIVE=1;
 const bit<8> ADDR_PREFERRED=2;
@@ -67,7 +69,6 @@ struct my_headers_t {
 
 struct my_metadata_t {
     bit<8> src_state; /* Indicate source in port entry or not */
-    bit<8> target_address_state; /*Indicate target address in port entry or not */
 }
 
 struct binding_entry_t{
@@ -133,99 +134,8 @@ control MyIngress(inout my_headers_t hdr,
         mark_to_drop();
     }
 
-    action inspect_source_in_port_entry(out my_metadata_t meta,IPv6Address ipv6,
-                                        AddrState addr_state){
-        if(hdr.ipv6.src==ipv6){
-            if(addr_state==ADDR_PREFERRED){
-                meta.src_state=SRC_IN_PORT_ENTRY;
-            }else{
-                meta.src_state=SRC_NOT_IN_PORT_ENTRY;
-            }
-        }else{
-            meta.src_state=SRC_NOT_IN_PORT_ENTRY;
-        }
-    }
-
-    table port_match_source{
-        key = {
-            standard_metadata.ingress_port  :exact;
-        }
-        actions = {
-            drop;
-            inspect_source_in_port_entry;
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
-    action inspect_target_address_in_port_entry(out my_metadata_t meta,IPv6Address ipv6,
-                                        AddrState addr_state){
-        if(hdr.icmpv6.target_address==ipv6){
-            if(addr_state==ADDR_PREFERRED){
-                meta.target_address_state=TARGET_ADDRESS_IN_PORT_ENTRY;
-            }else{
-                if(addr_state==ADDR_TENTATIVE){
-                    meta.target_address_state=TARGET_ADDRESS_IS_TENTATIVE;
-                }else{
-                    meta.target_address_state=TARGET_ADDRESS_NOT_IN_PORT_ENTRY;
-                }
-            }
-        }else{
-            meta.target_address_state=TARGET_ADDRESS_NOT_IN_PORT_ENTRY;
-        }
-    }
-
-    action build_binding_entry() {
-        copy_to_cpu(hdr.ipv6.src,standard_metadata.ingress_port,BUILD_BINDING_ENTRY_FLAG); /*How to copy data to cpu in bmv2?*/
-        /*
-         * standard_metadata.egress_spec=CPU_PORT; 
-         * can not modify egress_spec directly, because still need to normal forward?
-         */
-    }
-
-    action delete_binding_entry(){
-         copy_to_cpu(hdr.ipv6.src,standard_metadata.ingress_port,DELETE_BINDING_ENTRY_FLAG); /*How to copy data to cpu in bmv2?*/
-    }
-
-    table target_address_in_binding_entry {
-        key = {
-            standard_metadata.ingress_port  :exact;
-        }
-        actions = {
-            drop;
-            inspect_target_address_in_port_entry;
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
     action modify_egress_spec(bit<16> port){
         standard_metadata.egress_spec = port;
-    }
-
-    table forward {
-        key = {
-            hdr.ipv6.dst :exact;
-            hdr.ethernet.dst :exact;
-        }
-        actions = {
-            drop;
-            modify_egress_spec; /*How to handle multicast?*/
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
-    table ipv6_learning_table {
-        key = {
-            hdr.icmpv6.target_address :exact; 
-        }
-        actions = {
-            noAction;
-
-        }
-        const default_action = noAction;
-        size = 16384;
     }
 
     table mac_forward {
@@ -240,34 +150,122 @@ control MyIngress(inout my_headers_t hdr,
         size = 16384;
     }
 
+    action view_port_ipv6_num(){
+        port_ipv6_num.read(bit<32>(standard_metadata.ingress_port),meta.port_ipv6_num);
+    }
+
+    action notify_controller_reply_na(){
+    }
+
+    action build_binding_entry(){
+        bit<8> port_ipv6_num;
+        port_ipv6_num.read(bit<32>(standard_metadata.ingress_port),port_ipv6_num);
+        bit<32> index;
+        index = standard_metadata.ingress_port*4;
+        index = index + port_ipv6_num;
+        port_ipv6.write(index,hdr.icmpv6.target_address);
+        port_ipv6_state.write(index,ADDR_TENTATIVE);
+        port_ipv6_num = port_ipv6_num + 1;
+        port_ipv6_num.write(bit<32>(standard_metadata.ingress_port),port_ipv6_num);
+    }
+
+    action multicast(){
+        standard_metadata.mcast_grp=1;
+    }
+
+    action port_match_source(){
+        bit<8> port_ipv6_num;
+        port_ipv6_num.read(bit<32>(standard_metadata.ingress_port),port_ipv6_num);
+        if(port_ipv6_num>0){
+            bit<32> index;
+            index = standard_metadata.ingress_port*4;
+            IPv6Address ipv6;
+            port_ipv6.read(index,ipv6)
+            if(ipv6==hdr.ipv6.src){
+                port_ipv6_state.write(index,ADDR_PREFERRED);
+                meta.src_state=SRC_IN_PORT_ENTRY;
+            }else{
+                port_ipv6.read(index+1,ipv6)
+                if(ipv6==hdr.ipv6.src){
+                    port_ipv6_state.write(index+1,ADDR_PREFERRED);
+                    meta.src_state=SRC_IN_PORT_ENTRY;
+                }
+                else{
+                    port_ipv6.read(index+2,ipv6)
+                    if(ipv6==hdr.ipv6.src){
+                        port_ipv6_state.write(index+2,ADDR_PREFERRED);
+                        meta.src_state=SRC_IN_PORT_ENTRY;
+                    }
+                    else{
+                        port_ipv6.read(index+3,ipv6)
+                        if(ipv6==hdr.ipv6.src){
+                            port_ipv6_state.write(index+3,ADDR_PREFERRED);
+                            meta.src_state=SRC_IN_PORT_ENTRY;
+                        }else{
+                            meta.src_state=SRC_NOT_IN_PORT_ENTRY;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    action port_match_target_address(){
+        bit<8> port_ipv6_num;
+        port_ipv6_num.read(bit<32>(standard_metadata.ingress_port),port_ipv6_num);
+        if(port_ipv6_num>0){
+            bit<32> index;
+            index = standard_metadata.ingress_port*4;
+            IPv6Address ipv6;
+            AddrState addr_state;
+            port_ipv6.read(index,ipv6)
+            if(ipv6==hdr.icmpv6.target_address){ 
+                port_ipv6_state.read(index,addr_state)
+                if(addr_state==ADDR_TENTATIVE){
+                    port_ipv6_num.write(bit<32>(standard_metadata.ingress_port),port_ipv6_num-1);
+                     /* Later 3 Register Move Forward*/
+                }
+            }else{
+                // Tarverse Later 3 Register
+            }
+        }
+    }
+
     /* Code */
     apply{
         if(hdr.icmpv6.type==TYPE_NS){
             if(hdr.ipv6.src==0x0){
-                target_address_in_binding_entry.apply();
-                if (meta.target_address_state==TARGET_ADDRESS_NOT_IN_PORT_ENTRY){
+                view_port_ipv6_num();
+                if(meta.port_ipv6_num>=4){
+                    notify_controller_reply_na();
+                }else{
                     build_binding_entry();
+                    multicast();
                 }
-                forward.apply();
             }else{
-                port_match_source.apply();
+                port_match_source();
                 if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
                     drop();
                 }
-                forward.apply();
+                if(hdr.ethernet.dst==MULTICAST_ADDR){
+                    multicast();
+                }else{
+                    mac_forward.apply();
+                }
             }
         }else{
             if(hdr.icmpv6.type==TYPE_NA){
                 if(hdr.ipv6.src==hdr.icmpv6.target_address){
-                    port_match_source.apply();
+                    port_match_source();
                     if(meta.src_state==SRC_NOT_IN_PORT_ENTRY){
                         drop();
                     }
-                    target_address_in_binding_entry.apply();
-                    if(meta.target_address_state==TARGET_ADDRESS_IS_TENTATIVE){
-                        delete_binding_entry();
+                    port_match_target_address();
+                    if(hdr.ethernet.dst==MULTICAST_ADDR){
+                        multicast();
+                    }else{
+                        mac_forward.apply();
                     }
-                    forward.apply();
                 }else{
                     drop();
                 }

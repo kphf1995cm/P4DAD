@@ -8,27 +8,19 @@ const bit<8> NH_ICMPv6 = 58;
 const bit<8> TYPE_NS = 135;
 const bit<8> TYPE_NA = 136;
 
-const bit<8> ADDR_IDLE=0;
+const bit<48> MULTICAST_ADDR =0x3333ff9088e1;
+
 const bit<8> ADDR_TENTATIVE=1;
 const bit<8> ADDR_PREFERRED=2;
 const bit<8> ADDR_DEPRECATED=3;
-const bit<8> ADDR_UNAVAILABLE=4;
+
 const bit<8> SRC_IN_PORT_ENTRY=5;
 const bit<8> SRC_NOT_IN_PORT_ENTRY=6;
-const bit<8> TARGET_ADDRESS_IN_PORT_ENTRY=7;
-const bit<8> TARGET_ADDRESS_IS_TENTATIVE=8;
-const bit<8> TARGET_ADDRESS_NOT_IN_PORT_ENTRY=9;
 
-const bit<16> CPU_PORT=10;
-const bit<8> BUILD_BINDING_ENTRY_FLAG=11;
-const bit<8> DELETE_BINDING_ENTRY_FLAG=12;
-
-const bit<8> PORT_MAX_IPV6_NUM = 4;
 
 /************************************ HEADERS ************************************/
 
 typedef bit<48> MacAddress;
-typedef bit<32> IPv4Address;
 typedef bit<128> IPv6Address;
 typedef bit<128> TargetAddress;
 typedef bit<8> AddrState;
@@ -58,7 +50,6 @@ header icmpv6_ns_na_h {
     TargetAddress target_address;
 }
 
-// List of all recognized headers
 struct my_headers_t {
     ethernet_h ethernet;
     ipv6_h ipv6;
@@ -67,19 +58,11 @@ struct my_headers_t {
 
 struct my_metadata_t {
     bit<8> src_state; /* Indicate source in port entry or not */
-    bit<8> target_address_state; /*Indicate target address in port entry or not */
-}
-
-struct binding_entry_t{
-    bit<16> port;
-    IPv6Address addr;
-    bit<8> addr_state; /* idle,tentative,preferred,deprecated,unavailable*/
 }
 
 /*********************************** REGISTER ***********************************/
-register<IPv6Address>(400) port_ipv6;
-register<AddrState>(400) port_ipv6_state;
-register<bit<8>>(100) port_ipv6_num;
+register<IPv6Address>(100) port_ipv6;
+register<AddrState>(100) port_ipv6_state;
 
 /************************************ PARSER ************************************/
 parser MyParser(packet_in                 packet,
@@ -133,99 +116,8 @@ control MyIngress(inout my_headers_t hdr,
         mark_to_drop();
     }
 
-    action inspect_source_in_port_entry(out my_metadata_t meta,IPv6Address ipv6,
-                                        AddrState addr_state){
-        if(hdr.ipv6.src==ipv6){
-            if(addr_state==ADDR_PREFERRED){
-                meta.src_state=SRC_IN_PORT_ENTRY;
-            }else{
-                meta.src_state=SRC_NOT_IN_PORT_ENTRY;
-            }
-        }else{
-            meta.src_state=SRC_NOT_IN_PORT_ENTRY;
-        }
-    }
-
-    table port_match_source{
-        key = {
-            standard_metadata.ingress_port  :exact;
-        }
-        actions = {
-            drop;
-            inspect_source_in_port_entry;
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
-    action inspect_target_address_in_port_entry(out my_metadata_t meta,IPv6Address ipv6,
-                                        AddrState addr_state){
-        if(hdr.icmpv6.target_address==ipv6){
-            if(addr_state==ADDR_PREFERRED){
-                meta.target_address_state=TARGET_ADDRESS_IN_PORT_ENTRY;
-            }else{
-                if(addr_state==ADDR_TENTATIVE){
-                    meta.target_address_state=TARGET_ADDRESS_IS_TENTATIVE;
-                }else{
-                    meta.target_address_state=TARGET_ADDRESS_NOT_IN_PORT_ENTRY;
-                }
-            }
-        }else{
-            meta.target_address_state=TARGET_ADDRESS_NOT_IN_PORT_ENTRY;
-        }
-    }
-
-    action build_binding_entry() {
-        copy_to_cpu(hdr.ipv6.src,standard_metadata.ingress_port,BUILD_BINDING_ENTRY_FLAG); /*How to copy data to cpu in bmv2?*/
-        /*
-         * standard_metadata.egress_spec=CPU_PORT; 
-         * can not modify egress_spec directly, because still need to normal forward?
-         */
-    }
-
-    action delete_binding_entry(){
-         copy_to_cpu(hdr.ipv6.src,standard_metadata.ingress_port,DELETE_BINDING_ENTRY_FLAG); /*How to copy data to cpu in bmv2?*/
-    }
-
-    table target_address_in_binding_entry {
-        key = {
-            standard_metadata.ingress_port  :exact;
-        }
-        actions = {
-            drop;
-            inspect_target_address_in_port_entry;
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
     action modify_egress_spec(bit<16> port){
         standard_metadata.egress_spec = port;
-    }
-
-    table forward {
-        key = {
-            hdr.ipv6.dst :exact;
-            hdr.ethernet.dst :exact;
-        }
-        actions = {
-            drop;
-            modify_egress_spec; /*How to handle multicast?*/
-        }
-        const default_action = drop;
-        size = 16384;
-    }
-
-    table ipv6_learning_table {
-        key = {
-            hdr.icmpv6.target_address :exact; 
-        }
-        actions = {
-            noAction;
-
-        }
-        const default_action = noAction;
-        size = 16384;
     }
 
     table mac_forward {
@@ -240,34 +132,85 @@ control MyIngress(inout my_headers_t hdr,
         size = 16384;
     }
 
+    action build_binding_entry(){
+        bit<32> index;
+        index = bit<32>(standard_metadata.ingress_port);
+        port_ipv6.write(index,hdr.icmpv6.target_address);
+        port_ipv6_state.write(index,ADDR_TENTATIVE);
+    }
+
+    action multicast(){
+        standard_metadata.mcast_grp=1;
+    }
+
+    action port_match_source(){
+        bit<32> index;
+        index = bit<32> (standard_metadata.ingress_port);
+        IPv6Address ipv6;
+        port_ipv6.read(index,ipv6)
+        if(ipv6==hdr.ipv6.src){
+            port_ipv6_state.write(index,ADDR_PREFERRED);
+            meta.src_state=SRC_IN_PORT_ENTRY;
+        }else{
+            meta.src_state=SRC_NOT_IN_PORT_ENTRY;
+        }
+    }
+
+    action port_match_target_address(){
+        bit<32> index;
+        index = bit<32> (standard_metadata.ingress_port);
+        IPv6Address ipv6;
+        AddrState addr_state;
+        port_ipv6.read(index,ipv6);
+        if(ipv6==hdr.icmpv6.target_address){ 
+            port_ipv6_state.read(index,addr_state);
+            if(addr_state==ADDR_TENTATIVE){
+                /* Delete Binding Entry */
+                port_ipv6.write(index,0);
+                port_ipv6_state.write(index,ADDR_DEPRECATED);
+            }
+        }
+    }
+
+    action notify_controller_build_mac_port(){
+        /* transfer standard_metadata.ingress_port,hdr.ethernet.src parameter */
+    }
+
     /* Code */
     apply{
+        /* Learn mac_forward table automatically */
+        if (!mac_forward.apply().hit){
+            notify_controller_build_mac_port();
+        }
+
         if(hdr.icmpv6.type==TYPE_NS){
             if(hdr.ipv6.src==0x0){
-                target_address_in_binding_entry.apply();
-                if (meta.target_address_state==TARGET_ADDRESS_NOT_IN_PORT_ENTRY){
-                    build_binding_entry();
-                }
-                forward.apply();
+                build_binding_entry();
+                multicast();
             }else{
-                port_match_source.apply();
+                port_match_source();
                 if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
                     drop();
                 }
-                forward.apply();
+                if(hdr.ethernet.dst==MULTICAST_ADDR){
+                    multicast();
+                }else{
+                    mac_forward.apply();
+                }
             }
         }else{
             if(hdr.icmpv6.type==TYPE_NA){
                 if(hdr.ipv6.src==hdr.icmpv6.target_address){
-                    port_match_source.apply();
+                    port_match_source();
                     if(meta.src_state==SRC_NOT_IN_PORT_ENTRY){
                         drop();
                     }
-                    target_address_in_binding_entry.apply();
-                    if(meta.target_address_state==TARGET_ADDRESS_IS_TENTATIVE){
-                        delete_binding_entry();
+                    port_match_target_address();
+                    if(hdr.ethernet.dst==MULTICAST_ADDR){
+                        multicast();
+                    }else{
+                        mac_forward.apply();
                     }
-                    forward.apply();
                 }else{
                     drop();
                 }
