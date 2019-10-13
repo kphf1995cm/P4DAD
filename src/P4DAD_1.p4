@@ -113,11 +113,11 @@ control MyIngress(inout my_headers_t hdr,
     /* Declarations */
 
     action drop(){
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
 
     action modify_egress_spec(bit<16> port){
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_spec = (bit<9>)port;
     }
 
     table mac_forward {
@@ -134,7 +134,7 @@ control MyIngress(inout my_headers_t hdr,
 
     action build_binding_entry(){
         bit<32> index;
-        index = bit<32>(standard_metadata.ingress_port);
+        index = (bit<32>)standard_metadata.ingress_port;
         port_ipv6.write(index,hdr.icmpv6.target_address);
         port_ipv6_state.write(index,ADDR_TENTATIVE);
     }
@@ -145,9 +145,9 @@ control MyIngress(inout my_headers_t hdr,
 
     action port_match_source(){
         bit<32> index;
-        index = bit<32> (standard_metadata.ingress_port);
+        index = (bit<32>)standard_metadata.ingress_port;
         IPv6Address ipv6;
-        port_ipv6.read(index,ipv6)
+        port_ipv6.read(ipv6,index);
         if(ipv6==hdr.ipv6.src){
             port_ipv6_state.write(index,ADDR_PREFERRED);
             meta.src_state=SRC_IN_PORT_ENTRY;
@@ -158,12 +158,12 @@ control MyIngress(inout my_headers_t hdr,
 
     action port_match_target_address(){
         bit<32> index;
-        index = bit<32> (standard_metadata.ingress_port);
+        index = (bit<32>)standard_metadata.ingress_port;
         IPv6Address ipv6;
         AddrState addr_state;
-        port_ipv6.read(index,ipv6);
+        port_ipv6.read(ipv6,index);
         if(ipv6==hdr.icmpv6.target_address){ 
-            port_ipv6_state.read(index,addr_state);
+            port_ipv6_state.read(addr_state,index);
             if(addr_state==ADDR_TENTATIVE){
                 /* Delete Binding Entry */
                 port_ipv6.write(index,0);
