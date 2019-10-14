@@ -78,7 +78,7 @@ parser MyParser(packet_in                 packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType){
             TYPE_IPV6: parse_ipv6;
-            default: reject; /* what happens in reject state is defined by an architecture */
+            default: accept; /* what happens in reject state is defined by an architecture */
         }
     }
 
@@ -86,17 +86,18 @@ parser MyParser(packet_in                 packet,
         packet.extract(hdr.ipv6);
         transition select(hdr.ipv6.nh){
             NH_ICMPv6: parse_icmpv6;
-            default: reject;
+            default: accept;
         }
     }
 
     state parse_icmpv6 {
         packet.extract(hdr.icmpv6);
-        transition select(hdr.icmpv6.type){
+        transition accept;
+        /*transition select(hdr.icmpv6.type){
             TYPE_NS: accept;
             TYPE_NA: accept;
-            default: reject;
-        }
+            default: accept;
+        }*/
     }
 }
 
@@ -149,14 +150,14 @@ control MyIngress(inout my_headers_t hdr,
         IPv6Address ipv6;
         port_ipv6.read(ipv6,index);
         if(ipv6==hdr.ipv6.src){
-            port_ipv6_state.write(index,ADDR_PREFERRED);
+            /*port_ipv6_state.write(index,ADDR_PREFERRED);*/
             meta.src_state=SRC_IN_PORT_ENTRY;
         }else{
             meta.src_state=SRC_NOT_IN_PORT_ENTRY;
         }
     }
 
-    action port_match_target_address(){
+    /*action port_match_target_address(){
         bit<32> index;
         index = (bit<32>)standard_metadata.ingress_port;
         IPv6Address ipv6;
@@ -165,12 +166,11 @@ control MyIngress(inout my_headers_t hdr,
         if(ipv6==hdr.icmpv6.target_address){ 
             port_ipv6_state.read(addr_state,index);
             if(addr_state==ADDR_TENTATIVE){
-                /* Delete Binding Entry */
                 port_ipv6.write(index,0);
                 port_ipv6_state.write(index,ADDR_DEPRECATED);
             }
         }
-    }
+    }*/
 
     action notify_controller_build_mac_port(){
         /* transfer standard_metadata.ingress_port,hdr.ethernet.src parameter */
@@ -179,9 +179,9 @@ control MyIngress(inout my_headers_t hdr,
     /* Code */
     apply{
         /* Learn mac_forward table automatically */
-        if (!mac_forward.apply().hit){
+        /*if (!mac_forward.apply().hit){
             notify_controller_build_mac_port();
-        }
+        }*/
 
         if(hdr.icmpv6.type==TYPE_NS){
             if(hdr.ipv6.src==0x0){
@@ -189,8 +189,12 @@ control MyIngress(inout my_headers_t hdr,
                 multicast();
             }else{
                 port_match_source();
-                if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
-                    drop();
+                if(meta.src_state==SRC_IN_PORT_ENTRY){
+                    port_ipv6_state.write((bit<32>)standard_metadata.ingress_port,ADDR_PREFERRED);
+                }else{
+                    if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
+                        drop();
+                    }
                 }
                 if(hdr.ethernet.dst==MULTICAST_ADDR){
                     multicast();
@@ -205,7 +209,20 @@ control MyIngress(inout my_headers_t hdr,
                     if(meta.src_state==SRC_NOT_IN_PORT_ENTRY){
                         drop();
                     }
-                    port_match_target_address();
+
+                    /*port_match_target_address();*/
+                    IPv6Address ipv6;
+                    AddrState addr_state;
+                    port_ipv6.read(ipv6,(bit<32>)standard_metadata.ingress_port);
+                    if(ipv6==hdr.icmpv6.target_address){
+                        port_ipv6_state.read(addr_state,(bit<32>)standard_metadata.ingress_port);
+                        if(addr_state==ADDR_TENTATIVE){
+                            /* Delete Binding Entry */
+                            port_ipv6.write((bit<32>)standard_metadata.ingress_port,0);
+                            port_ipv6_state.write((bit<32>)standard_metadata.ingress_port,ADDR_DEPRECATED);
+                        }
+                    }
+
                     if(hdr.ethernet.dst==MULTICAST_ADDR){
                         multicast();
                     }else{
