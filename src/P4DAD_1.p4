@@ -8,7 +8,8 @@ const bit<8> NH_ICMPv6 = 58;
 const bit<8> TYPE_NS = 135;
 const bit<8> TYPE_NA = 136;
 
-const bit<48> MULTICAST_ADDR =0x3333ff9088e1;
+//const bit<48> MULTICAST_ADDR =0x3333ff9088e1;
+const bit<48> MULTICAST_ADDR =0x3333ffe48900;
 
 const bit<8> ADDR_TENTATIVE=1;
 const bit<8> ADDR_PREFERRED=2;
@@ -17,12 +18,12 @@ const bit<8> ADDR_DEPRECATED=3;
 const bit<8> SRC_IN_PORT_ENTRY=5;
 const bit<8> SRC_NOT_IN_PORT_ENTRY=6;
 
-
 /************************************ HEADERS ************************************/
 
 typedef bit<48> MacAddress;
 typedef bit<128> IPv6Address;
-typedef bit<128> TargetAddress;
+typedef bit<64> HalfIPv6Address;
+// typedef bit<128> TargetAddress;
 typedef bit<8> AddrState;
 
 header ethernet_h {
@@ -47,7 +48,7 @@ header icmpv6_ns_na_h {
     bit<8> code;
     bit<16> checksum;
     bit<32> reserved;
-    TargetAddress target_address;
+    IPv6Address target_address;
 }
 
 struct my_headers_t {
@@ -57,11 +58,11 @@ struct my_headers_t {
 }
 
 struct my_metadata_t {
-    bit<8> src_state; /* Indicate source in port entry or not */
+    bit<8> src_state; /* Indicate source in port_ipv6 entry or not */
 }
 
 /*********************************** REGISTER ***********************************/
-register<IPv6Address>(100) port_ipv6;
+register<HalfIPv6Address>(100) port_ipv6;
 register<AddrState>(100) port_ipv6_state;
 
 /************************************ PARSER ************************************/
@@ -136,20 +137,22 @@ control MyIngress(inout my_headers_t hdr,
     action build_binding_entry(){
         bit<32> index;
         index = (bit<32>)standard_metadata.ingress_port;
-        port_ipv6.write(index,hdr.icmpv6.target_address);
+        port_ipv6.write(index,(bit<64>)hdr.icmpv6.target_address);
         port_ipv6_state.write(index,ADDR_TENTATIVE);
     }
 
     action multicast(){
-        standard_metadata.mcast_grp=1;
+        //standard_metadata.mcast_grp=1;
+        hdr.ipv6.src = 0xffff;
+        standard_metadata.egress_spec = 1;
     }
 
     action port_match_source(){
         bit<32> index;
         index = (bit<32>)standard_metadata.ingress_port;
-        IPv6Address ipv6;
-        port_ipv6.read(ipv6,index);
-        if(ipv6==hdr.ipv6.src){
+        HalfIPv6Address suffix;
+        port_ipv6.read(suffix,index);
+        if(suffix==(bit<64>)hdr.ipv6.src){
             /*port_ipv6_state.write(index,ADDR_PREFERRED);*/
             meta.src_state=SRC_IN_PORT_ENTRY;
         }else{
@@ -211,10 +214,10 @@ control MyIngress(inout my_headers_t hdr,
                     }
 
                     /*port_match_target_address();*/
-                    IPv6Address ipv6;
+                    HalfIPv6Address suffix;
                     AddrState addr_state;
-                    port_ipv6.read(ipv6,(bit<32>)standard_metadata.ingress_port);
-                    if(ipv6==hdr.icmpv6.target_address){
+                    port_ipv6.read(suffix,(bit<32>)standard_metadata.ingress_port);
+                    if(suffix==(bit<64>)hdr.icmpv6.target_address){
                         port_ipv6_state.read(addr_state,(bit<32>)standard_metadata.ingress_port);
                         if(addr_state==ADDR_TENTATIVE){
                             /* Delete Binding Entry */
@@ -243,6 +246,9 @@ control MyEgress(inout my_headers_t hdr,
                  inout my_metadata_t meta,
                  inout standard_metadata_t standard_metadata){
     apply{
+        bit<48> timestamp;
+        timestamp = standard_metadata.egress_global_timestamp-standard_metadata.ingress_global_timestamp;
+        hdr.icmpv6.reserved = (bit<32>)timestamp;
     }
 }
 
@@ -273,3 +279,6 @@ V1Switch(
     MyDeparser()
 ) main;
 
+/*
+ * table_add MyIngress.mac_forward modify_egress_spec 33:33:ff:e4:89:00 => 2
+ */
