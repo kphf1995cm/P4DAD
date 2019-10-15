@@ -19,6 +19,8 @@ const bit<8> SRC_IN_PORT_ENTRY=5;
 const bit<8> SRC_NOT_IN_PORT_ENTRY=6;
 const bit<8> MAC_IN_MAC_QUERY_TABLE=7;
 const bit<8> MAC_NOT_IN_MAC_QUERY_TABLE=8;
+const bit<8> TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE=9;
+const bit<8> TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE=10;
 
 /************************************ HEADERS ************************************/
 
@@ -72,6 +74,7 @@ struct ipv6_digest_data_t {
 struct my_metadata_t {
     bit<8> src_state; /* Indicate source in port_ipv6 entry or not */
     bit<8> mac_state; // Indicate mac in mac_query table or not
+    bit<8> target_address_state; // Indicate target_address in target_address_query table or not
     bit<8> index; // index of target_address in register
     mac_digest_data_t mac_digest;
     ipv6_digest_data_t ipv6_digest; 
@@ -146,8 +149,13 @@ control MyIngress(inout my_headers_t hdr,
         meta.mac_state=MAC_NOT_IN_MAC_QUERY_TABLE;
     }
 
-    action record_target_address_index(bit<8> index){
+    action set_target_address_in(bit<8> index){
         meta.index = index;
+        meta.target_address_state=TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE;
+    }
+
+    action set_target_address_not_in(){
+        meta.target_address_state=TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE;
     }
 
     table mac_query {
@@ -179,10 +187,10 @@ control MyIngress(inout my_headers_t hdr,
             hdr.icmpv6.target_address : exact;
         }
         actions = {
-            record_target_address_inex;
-            noAction;
+            set_target_address_in;
+            set_target_address_not_in;
         }
-        const default_action = record_target_address_index;
+        const default_action = set_target_address_not_in;
         size = 1024;
     }
 
@@ -231,18 +239,19 @@ control MyIngress(inout my_headers_t hdr,
 
     /* Code */
     apply{
+        target_address_query.apply();
         if(hdr.icmpv6.type==TYPE_NS){
             if(hdr.ipv6.src==0x0){
                 // mac address learn 
                 if(!mac_query.apply().hit){
                     meta.mac_digest.mac=hdr.ethernet.src;
-                    meta.mac_digest.port=standard_metadata.ingress_port;
+                    meta.mac_digest.port=(bit<16>)standard_metadata.ingress_port;
                     digest(1,meta.mac_digest); // Packet Digests to controller
                 }
-                if(!target_address_query.apply().hit){
+                if(meta.target_address_state==TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE){
                     build_binding_entry(); // Build port and ipv6 binding
                     meta.ipv6_digest.ipv6=hdr.icmpv6.target_address;
-                    meta.ipv6_digest.index=standard_metadata.ingress_port;
+                    meta.ipv6_digest.index=(bit<8>)standard_metadata.ingress_port;
                     digest(1,meta.ipv6_digest); 
                 }
                 multicast();
@@ -269,7 +278,7 @@ control MyIngress(inout my_headers_t hdr,
                         drop();
                     }
                     /*verify_target_address();*/
-                    if(target_address_query.apply().hit){
+                    if(meta.target_address_state==TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE){
                         HalfIPv6Address suffix;
                         AddrState addr_state;
                         port_ipv6.read(suffix,(bit<32>)meta.index);
