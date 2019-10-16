@@ -24,10 +24,12 @@ const bit<8> TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE=10;
 
 const bit<32> NS_RECV_SUM = 0;
 const bit<32> NS_RECV_FOR_DAD_SUM = 1;
-const bit<32> NS_FILTER_SUM = 2;
-const bit<32> NA_RECV_SUM = 3;
-const bit<32> NA_RECV_FOR_DAD_SUM = 4;
-const bit<32> NA_FILTER_SUM = 5;
+const bit<32> NS_RECV_FOR_NOT_DAD_SUM = 2;
+const bit<32> NS_FILTER_SUM = 3;
+const bit<32> NA_RECV_SUM = 4;
+const bit<32> NA_RECV_FOR_DAD_SUM = 5;
+const bit<32> NA_RECV_FOR_NOT_DAD_SUM = 6;
+const bit<32> NA_FILTER_SUM = 7;
 
 /************************************ HEADERS ************************************/
 
@@ -90,7 +92,7 @@ struct my_metadata_t {
 /*********************************** REGISTER ***********************************/
 register<HalfIPv6Address>(100) port_ipv6;
 register<AddrState>(100) port_ipv6_state;
-register<bit<64>>(6) statistics;  
+register<bit<64>>(8) statistics;  
 
 /************************************ PARSER ************************************/
 parser MyParser(packet_in                 packet,
@@ -278,6 +280,13 @@ control MyIngress(inout my_headers_t hdr,
                 }
                 multicast();
             }else{
+
+                // Calculate ns recv for not dad sum 
+                bit<64> ns_recv_for_not_dad_sum;
+                statistics.read(ns_recv_for_not_dad_sum,NS_RECV_FOR_NOT_DAD_SUM);
+                ns_recv_for_not_dad_sum = ns_recv_for_not_dad_sum + 1;
+                statistics.write(NS_RECV_FOR_NOT_DAD_SUM,ns_recv_for_not_dad_sum);
+
                 verify_source();
                 if(meta.src_state==SRC_IN_PORT_ENTRY){ // change IPv6 address state
                     port_ipv6_state.write((bit<32>)standard_metadata.ingress_port,ADDR_PREFERRED);
@@ -318,31 +327,40 @@ control MyIngress(inout my_headers_t hdr,
                         statistics.write(NA_FILTER_SUM,na_filter_sum);
                         drop();
                     }
-                    /*verify_target_address();*/
-                    if(meta.target_address_state==TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE){
+                    else{
+                        /*verify_target_address();*/
+                        if(meta.target_address_state==TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE){
 
-                        // Calculate na recv for dad sum
-                        bit<64> na_recv_for_dad_sum;
-                        statistics.read(na_recv_for_dad_sum,NA_RECV_FOR_DAD_SUM);
-                        na_recv_for_dad_sum = na_recv_for_dad_sum + 1;
-                        statistics.write(NA_RECV_FOR_DAD_SUM,na_recv_for_dad_sum);
+                            // Calculate na recv for dad sum
+                            bit<64> na_recv_for_dad_sum;
+                            statistics.read(na_recv_for_dad_sum,NA_RECV_FOR_DAD_SUM);
+                            na_recv_for_dad_sum = na_recv_for_dad_sum + 1;
+                            statistics.write(NA_RECV_FOR_DAD_SUM,na_recv_for_dad_sum);
 
-                        HalfIPv6Address suffix;
-                        AddrState addr_state;
-                        port_ipv6.read(suffix,(bit<32>)meta.index);
-                        if(suffix==(bit<64>)hdr.icmpv6.target_address){
-                            port_ipv6_state.read(addr_state,(bit<32>)meta.index);
-                            if(addr_state==ADDR_TENTATIVE){
-                                /* Delete Binding Entry */
-                                port_ipv6.write((bit<32>)meta.index,0);
-                                port_ipv6_state.write((bit<32>)meta.index,ADDR_DEPRECATED);
+                            HalfIPv6Address suffix;
+                            AddrState addr_state;
+                            port_ipv6.read(suffix,(bit<32>)meta.index);
+                            if(suffix==(bit<64>)hdr.icmpv6.target_address){
+                                port_ipv6_state.read(addr_state,(bit<32>)meta.index);
+                                if(addr_state==ADDR_TENTATIVE){
+                                    /* Delete Binding Entry */
+                                    port_ipv6.write((bit<32>)meta.index,0);
+                                    port_ipv6_state.write((bit<32>)meta.index,ADDR_DEPRECATED);
+                                }
                             }
                         }
-                    }
-                    if(hdr.ethernet.dst==MULTICAST_ADDR){
-                        multicast();
-                    }else{
-                        mac_forward.apply();
+                        else{
+                            // Calculate na recv for not dad sum
+                            bit<64> na_recv_for_not_dad_sum;
+                            statistics.read(na_recv_for_not_dad_sum,NA_RECV_FOR_NOT_DAD_SUM);
+                            na_recv_for_not_dad_sum = na_recv_for_not_dad_sum + 1;
+                            statistics.write(NA_RECV_FOR_NOT_DAD_SUM,na_recv_for_not_dad_sum);
+                        }
+                        if(hdr.ethernet.dst==MULTICAST_ADDR){
+                            multicast();
+                        }else{
+                            mac_forward.apply();
+                        }
                     }
                 }else{
                     // Calculate na filter sum
