@@ -22,6 +22,13 @@ const bit<8> MAC_NOT_IN_MAC_QUERY_TABLE=8;
 const bit<8> TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE=9;
 const bit<8> TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE=10;
 
+const bit<32> NS_RECV_SUM = 0;
+const bit<32> NS_RECV_FOR_DAD_SUM = 1;
+const bit<32> NS_FILTER_SUM = 2;
+const bit<32> NA_RECV_SUM = 3;
+const bit<32> NA_RECV_FOR_DAD_SUM = 4;
+const bit<32> NA_FILTER_SUM = 5;
+
 /************************************ HEADERS ************************************/
 
 typedef bit<48> MacAddress;
@@ -83,6 +90,7 @@ struct my_metadata_t {
 /*********************************** REGISTER ***********************************/
 register<HalfIPv6Address>(100) port_ipv6;
 register<AddrState>(100) port_ipv6_state;
+register<bit<64>>(6) statistics;  
 
 /************************************ PARSER ************************************/
 parser MyParser(packet_in                 packet,
@@ -241,7 +249,21 @@ control MyIngress(inout my_headers_t hdr,
     apply{
         target_address_query.apply();
         if(hdr.icmpv6.type==TYPE_NS){
+            
+            // Calculate ns recv sum
+            bit<64> ns_recv_sum;
+            statistics.read(ns_recv_sum,NS_RECV_SUM);
+            ns_recv_sum = ns_recv_sum + 1;
+            statistics.write(NS_RECV_SUM,ns_recv_sum);
+
             if(hdr.ipv6.src==0x0){
+                
+                // Calculate ns recv for dad sum 
+                bit<64> ns_recv_for_dad_sum;
+                statistics.read(ns_recv_for_dad_sum,NS_RECV_FOR_DAD_SUM);
+                ns_recv_for_dad_sum = ns_recv_for_dad_sum + 1;
+                statistics.write(NS_RECV_FOR_DAD_SUM,ns_recv_for_dad_sum);
+
                 // mac address learn 
                 if(!mac_query.apply().hit){
                     meta.mac_digest.mac=hdr.ethernet.src;
@@ -261,6 +283,12 @@ control MyIngress(inout my_headers_t hdr,
                     port_ipv6_state.write((bit<32>)standard_metadata.ingress_port,ADDR_PREFERRED);
                 }else{
                     if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
+
+                        // Calculate ns filter sum
+                        bit<64> ns_filter_sum;
+                        statistics.read(ns_filter_sum,NS_FILTER_SUM);
+                        ns_filter_sum = ns_filter_sum + 1;
+                        statistics.write(NS_FILTER_SUM,ns_filter_sum);
                         drop();
                     }
                 }
@@ -272,13 +300,33 @@ control MyIngress(inout my_headers_t hdr,
             }
         }else{
             if(hdr.icmpv6.type==TYPE_NA){
+
+                // Calculate na recv sum
+                bit<64> na_recv_sum;
+                statistics.read(na_recv_sum,NA_RECV_SUM);
+                na_recv_sum = na_recv_sum + 1;
+                statistics.write(NA_RECV_SUM,na_recv_sum);
+
                 if(hdr.ipv6.src==hdr.icmpv6.target_address){
                     verify_source();
                     if(meta.src_state==SRC_NOT_IN_PORT_ENTRY){
+
+                        // Calculate na filter sum
+                        bit<64> na_filter_sum;
+                        statistics.read(na_filter_sum,NA_FILTER_SUM);
+                        na_filter_sum = na_filter_sum + 1;
+                        statistics.write(NA_FILTER_SUM,na_filter_sum);
                         drop();
                     }
                     /*verify_target_address();*/
                     if(meta.target_address_state==TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE){
+
+                        // Calculate na recv for dad sum
+                        bit<64> na_recv_for_dad_sum;
+                        statistics.read(na_recv_for_dad_sum,NA_RECV_FOR_DAD_SUM);
+                        na_recv_for_dad_sum = na_recv_for_dad_sum + 1;
+                        statistics.write(NA_RECV_FOR_DAD_SUM,na_recv_for_dad_sum);
+
                         HalfIPv6Address suffix;
                         AddrState addr_state;
                         port_ipv6.read(suffix,(bit<32>)meta.index);
@@ -297,6 +345,11 @@ control MyIngress(inout my_headers_t hdr,
                         mac_forward.apply();
                     }
                 }else{
+                    // Calculate na filter sum
+                    bit<64> na_filter_sum;
+                    statistics.read(na_filter_sum,NA_FILTER_SUM);
+                    na_filter_sum = na_filter_sum + 1;
+                    statistics.write(NA_FILTER_SUM,na_filter_sum);
                     drop();
                 }
             }else{

