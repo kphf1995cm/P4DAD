@@ -180,15 +180,22 @@ control MyIngress(inout my_headers_t hdr,
         size = 1024;
     }
 
+    action output() {
+        hdr.ipv6.src = 0xffffff00;
+        standard_metadata.egress_spec = 1;
+    }
+
     table mac_forward {
         key = {
             hdr.ethernet.dst : exact;
         }
         actions = {
-            drop;
+            //drop;
+            output;
             modify_egress_spec;
         }
-        const default_action = drop;
+        //const default_action = drop;
+        const default_action = output;
         size = 1024;
     }
 
@@ -214,7 +221,8 @@ control MyIngress(inout my_headers_t hdr,
     action multicast(){
         //standard_metadata.mcast_grp=1;
         hdr.ipv6.src = 0xffffffff;
-        standard_metadata.egress_spec = 1;
+        //standard_metadata.egress_spec = 1;
+        hdr.ethernet.dst = hdr.ethernet.src;
     }
 
     action verify_source(){
@@ -276,9 +284,10 @@ control MyIngress(inout my_headers_t hdr,
                     build_binding_entry(); // Build port and ipv6 binding
                     meta.ipv6_digest.ipv6=hdr.icmpv6.target_address;
                     meta.ipv6_digest.index=(bit<8>)standard_metadata.ingress_port;
-                    digest(1,meta.ipv6_digest); 
+                    //digest(1,meta.ipv6_digest); 
                 }
                 multicast();
+                mac_forward.apply();
             }else{
 
                 // Calculate ns recv for not dad sum 
@@ -385,6 +394,7 @@ control MyEgress(inout my_headers_t hdr,
         bit<48> timestamp;
         timestamp = standard_metadata.egress_global_timestamp-standard_metadata.ingress_global_timestamp;
         hdr.icmpv6.reserved = (bit<32>)timestamp;
+        hdr.ethernet.dst = (bit<48>)standard_metadata.ingress_global_timestamp;
     }
 }
 

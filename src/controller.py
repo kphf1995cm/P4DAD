@@ -65,19 +65,65 @@ class L2Controller(object):
             rid +=1
     '''
 
-    def fill_table_test(self):
-        self.controller.table_add("dmac", "forward", ['00:00:0a:00:00:01'], ['1'])
-        self.controller.table_add("dmac", "forward", ['00:00:0a:00:00:02'], ['2'])
-        self.controller.table_add("dmac", "forward", ['00:00:0a:00:00:03'], ['3'])
-        self.controller.table_add("dmac", "forward", ['00:00:0a:00:00:04'], ['4'])
+    '''
+    table mac_query {
+        key = {
+            hdr.ethernet.src : exact;
+        }
+        actions = {
+            set_mac_in;
+            set_mac_not_in;
+        }
+        const default_action = set_mac_not_in;
+        size = 1024;
+    }
+
+    table mac_forward {
+        key = {
+            hdr.ethernet.dst : exact;
+        }
+        actions = {
+            drop;
+            modify_egress_spec;
+        }
+        const default_action = drop;
+        size = 1024;
+    }
+
+    table target_address_query {
+        key = {
+            hdr.icmpv6.target_address : exact;
+        }
+        actions = {
+            set_target_address_in;
+            set_target_address_not_in;
+        }
+        const default_action = set_target_address_not_in;
+        size = 1024;
+    }
+    '''
+
+    def fill_mac_query_table_test(self):
+        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:01'], ['1'])
+        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:02'], ['2'])
+        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:03'], ['3'])
+        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:04'], ['4'])
+    
 
 
-    def learn(self, learning_data):
+
+    def mac_learn(self, learning_data):
 
         for mac_addr, ingress_port in  learning_data:
             print "mac: %012X ingress_port: %s " % (mac_addr, ingress_port)
-            self.controller.table_add("smac", "NoAction", [str(mac_addr)])
-            self.controller.table_add("dmac", "forward", [str(mac_addr)], [str(ingress_port)])
+            self.controller.table_add("mac_query", "set_mac_in", [str(mac_addr)])
+            self.controller.table_add("mac_forward", "modify_egress_spec", [str(mac_addr)], [str(ingress_port)])
+    
+    def ipv6_learn(self,learning_data):
+
+        for target_address, index in learning_data:
+            print "target_address: %012X index: %s " % (target_address, index)
+            self.controller.table_add("target_address_query","set_target_address_in",[str(target_address)],[str(index)])
 
     def unpack_digest(self, msg, num_samples):
 
@@ -97,21 +143,24 @@ class L2Controller(object):
         topic, device_id, ctx_id, list_id, buffer_id, num = struct.unpack("<iQiiQi",
                                                                           msg[:32])
         digest = self.unpack_digest(msg, num)
-        self.learn(digest)
+        print "digest:",digest
+        self.mac_learn(digest)
 
         #Acknowledge digest
         self.controller.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
 
-
     def run_digest_loop(self):
 
         sub = nnpy.Socket(nnpy.AF_SP, nnpy.SUB)
-        notifications_socket = self.controller.client.bm_mgmt_get_info().notifications_socket
-        sub.connect(notifications_socket)
+        #notifications_socket = self.controller.client.bm_mgmt_get_info().notifications_socket
+        #notifications_socket = "ipc:///tmp/bmv2-0-notifications.ipc"
+        #sub.connect(notifications_socket)
+        sub.connect('ipc:///tmp/bmv2-0-notifications.ipc')
         sub.setsockopt(nnpy.SUB, nnpy.SUB_SUBSCRIBE, '')
 
         while True:
             msg = sub.recv()
+            #print "msg:",msg
             self.recv_msg_digest(msg)
 
     def recv_msg_cpu(self, pkt):
