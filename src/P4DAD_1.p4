@@ -221,7 +221,7 @@ control MyIngress(inout my_headers_t hdr,
     action multicast(){
         //standard_metadata.mcast_grp=1;
         hdr.ipv6.src = 0xffffffff;
-        //standard_metadata.egress_spec = 1;
+        standard_metadata.egress_spec = 1;
         hdr.ethernet.dst = hdr.ethernet.src;
     }
 
@@ -287,7 +287,7 @@ control MyIngress(inout my_headers_t hdr,
                     //digest(1,meta.ipv6_digest); 
                 }
                 multicast();
-                mac_forward.apply();
+                //mac_forward.apply();
             }else{
 
                 // Calculate ns recv for not dad sum 
@@ -394,7 +394,7 @@ control MyEgress(inout my_headers_t hdr,
         bit<48> timestamp;
         timestamp = standard_metadata.egress_global_timestamp-standard_metadata.ingress_global_timestamp;
         hdr.icmpv6.reserved = (bit<32>)timestamp;
-        hdr.ethernet.dst = (bit<48>)standard_metadata.ingress_global_timestamp;
+        //hdr.ethernet.dst = (bit<48>)standard_metadata.ingress_global_timestamp;
     }
 }
 

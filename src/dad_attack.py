@@ -4,6 +4,7 @@ from scapy.all import *
 import random
 
 ifaceName = "enp0s31f6"
+#ifaceName = "docker0"
 
 globalSrcAddr = "2001:db8:0:1:c0bc:a2a0:21d6:6a0b"
 globalDstAddr = "ff02::1"
