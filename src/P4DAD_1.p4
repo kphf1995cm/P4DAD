@@ -189,12 +189,12 @@ control MyIngress(inout my_headers_t hdr,
             hdr.ethernet.dst : exact;
         }
         actions = {
-            //drop;
-            output;
+            drop;
+            //output;
             modify_egress_spec;
         }
-        //const default_action = drop;
-        const default_action = output;
+        const default_action = drop;
+        //const default_action = output;
         size = 1024;
     }
 
@@ -218,10 +218,10 @@ control MyIngress(inout my_headers_t hdr,
     }
 
     action multicast(){
-        //standard_metadata.mcast_grp=1;
-        hdr.ipv6.src = 0xffffffff;
+        // standard_metadata.mcast_grp=1;
+        // hdr.ipv6.src = 0xffffffff;
         standard_metadata.egress_spec = 1;
-        hdr.ethernet.dst = hdr.ethernet.src;
+        // hdr.ethernet.dst = hdr.ethernet.src;
     }
 
     action verify_source(){
@@ -266,7 +266,6 @@ control MyIngress(inout my_headers_t hdr,
             statistics.write(NS_RECV_SUM,ns_recv_sum);
 
             if(hdr.ipv6.src==0x0){
-                
                 // Calculate ns recv for dad sum 
                 bit<64> ns_recv_for_dad_sum;
                 statistics.read(ns_recv_for_dad_sum,NS_RECV_FOR_DAD_SUM);
@@ -285,10 +284,10 @@ control MyIngress(inout my_headers_t hdr,
                     meta.ipv6_digest.index=(bit<8>)standard_metadata.ingress_port;
                     //digest(1,meta.ipv6_digest); 
                 }
+                hdr.ipv6.src=0xffffffff;
                 multicast();
-                mac_forward.apply();
-            }else{
 
+            }else{
                 // Calculate ns recv for not dad sum 
                 bit<64> ns_recv_for_not_dad_sum;
                 statistics.read(ns_recv_for_not_dad_sum,NS_RECV_FOR_NOT_DAD_SUM);
@@ -300,7 +299,6 @@ control MyIngress(inout my_headers_t hdr,
                     port_ipv6_state.write((bit<32>)standard_metadata.ingress_port,ADDR_PREFERRED);
                 }else{
                     if (meta.src_state==SRC_NOT_IN_PORT_ENTRY){
-
                         // Calculate ns filter sum
                         bit<64> ns_filter_sum;
                         statistics.read(ns_filter_sum,NS_FILTER_SUM);
@@ -309,6 +307,7 @@ control MyIngress(inout my_headers_t hdr,
                         drop();
                     }
                 }
+                hdr.ipv6.src=0xfffffffe;
                 if(hdr.ethernet.dst==MULTICAST_ADDR){
                     multicast();
                 }else{
@@ -356,8 +355,10 @@ control MyIngress(inout my_headers_t hdr,
                                     port_ipv6_state.write((bit<32>)meta.index,ADDR_DEPRECATED);
                                 }
                             }
+                            hdr.ipv6.src=0xfffffffd;
                         }
                         else{
+                            hdr.ipv6.src=0xfffffffc;
                             // Calculate na recv for not dad sum
                             bit<64> na_recv_for_not_dad_sum;
                             statistics.read(na_recv_for_not_dad_sum,NA_RECV_FOR_NOT_DAD_SUM);
