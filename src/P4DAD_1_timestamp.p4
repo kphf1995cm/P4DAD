@@ -251,7 +251,7 @@ control MyIngress(inout my_headers_t hdr,
             // Calculate ns recv sum
             bit<64> ns_recv_sum;
             statistics.read(ns_recv_sum,NS_RECV_SUM);
-            ns_recv.write(ns_recv_sum,standard_metadata.ingress_global_timestamp);
+            ns_recv.write((bit<32>)ns_recv_sum,standard_metadata.ingress_global_timestamp);
             ns_recv_sum = ns_recv_sum + 1;
             statistics.write(NS_RECV_SUM,ns_recv_sum);
 
@@ -298,7 +298,7 @@ control MyIngress(inout my_headers_t hdr,
                         // Calculate ns filter sum
                         bit<64> ns_filter_sum;
                         statistics.read(ns_filter_sum,NS_FILTER_SUM);
-                        ns_filter.write(ns_filter_sum,standard_metadata.ingress_global_timestamp);
+                        ns_filter.write((bit<32>)ns_filter_sum,standard_metadata.ingress_global_timestamp);
                         ns_filter_sum = ns_filter_sum + 1;
                         statistics.write(NS_FILTER_SUM,ns_filter_sum);
                         drop();
@@ -317,7 +317,7 @@ control MyIngress(inout my_headers_t hdr,
                 // Calculate na recv sum
                 bit<64> na_recv_sum;
                 statistics.read(na_recv_sum,NA_RECV_SUM);
-                na_recv.write(na_recv_sum,standard_metadata.ingress_global_timestamp);
+                na_recv.write((bit<32>)na_recv_sum,standard_metadata.ingress_global_timestamp);
                 na_recv_sum = na_recv_sum + 1;
                 statistics.write(NA_RECV_SUM,na_recv_sum);
 
@@ -328,7 +328,7 @@ control MyIngress(inout my_headers_t hdr,
                         // Calculate na filter sum
                         bit<64> na_filter_sum;
                         statistics.read(na_filter_sum,NA_FILTER_SUM);
-                        na_filter.write(na_filter_sum,standard_metadata.ingress_global_timestamp);
+                        na_filter.write((bit<32>)na_filter_sum,standard_metadata.ingress_global_timestamp);
                         na_filter_sum = na_filter_sum + 1;
                         statistics.write(NA_FILTER_SUM,na_filter_sum);
                         drop();
@@ -374,7 +374,7 @@ control MyIngress(inout my_headers_t hdr,
                     // Calculate na filter sum
                     bit<64> na_filter_sum;
                     statistics.read(na_filter_sum,NA_FILTER_SUM);
-                    na_filter.write(na_filter_sum,standard_metadata.ingress_global_timestamp);
+                    na_filter.write((bit<32>)na_filter_sum,standard_metadata.ingress_global_timestamp);
                     na_filter_sum = na_filter_sum + 1;
                     statistics.write(NA_FILTER_SUM,na_filter_sum);
                     drop();
