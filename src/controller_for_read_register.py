@@ -1,5 +1,8 @@
 import nnpy
 import struct
+import keyboard
+import sys
+
 from p4utils.utils.topology import Topology
 from p4utils.utils.sswitch_API import SimpleSwitchAPI
 #from p4utils.utils.runtime_API import RuntimeAPI
@@ -104,24 +107,14 @@ class L2Controller(object):
         na_recv = self.controller.register_read("na_recv")
         ns_filter = self.controller.register_read("ns_filter")
         na_filter = self.controller.register_read("na_filter")
-	print "ns_recv: "
-	for x in ns_recv:
-	    if x != 0 :
-		print x,
-	print ""
+	print "ns_recv: ",ns_recv
 	print "ns_filter: ",ns_filter
 	print "na_recv: ",na_recv
 	print "na_filter: ",na_filter
 
 if __name__ == "__main__":
-    import sys
     sw_name = sys.argv[1]
-    receive_from = sys.argv[2]
-    if receive_from == "digest":
-        controller = L2Controller(sw_name)
-        controller.run_digest_loop()
+    controller = L2Controller(sw_name)
+    keyboard.wait('esc')
+    controller.read_register()
 
-    '''
-    elif receive_from == "cpu":
-        controller = L2Controller(sw_name).run_cpu_port_loop()
-    '''
