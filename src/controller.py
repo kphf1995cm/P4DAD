@@ -2,7 +2,6 @@ import nnpy
 import struct
 from p4utils.utils.topology import Topology
 from p4utils.utils.sswitch_API import SimpleSwitchAPI
-#from p4utils.utils.runtime_API import RuntimeAPI
 from scapy.all import Ether, sniff, Packet, BitField
 
 # https://github.com/nsg-ethz/p4-learning/blob/master/exercises/04-L2_Learning/l2_learning_controller.py
@@ -69,7 +68,10 @@ class L2Controller(object):
                                                                           msg[:32])
         digest = self.unpack_digest(msg, num)
         print "digest:",digest
-        self.mac_learn(digest)
+        if len(digest) == 8:
+            self.mac_learn(digest)
+        else:
+            self.ipv6_learn(digest)
 
         #Acknowledge digest
         self.controller.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
@@ -98,20 +100,6 @@ class L2Controller(object):
         cpu_port_intf = str(self.topo.get_cpu_port_intf(self.sw_name).replace("eth0", "eth1"))
         sniff(iface=cpu_port_intf, prn=self.recv_msg_cpu)
     '''
-
-    def read_register(self):
-        ns_recv = self.controller.register_read("ns_recv")
-        na_recv = self.controller.register_read("na_recv")
-        ns_filter = self.controller.register_read("ns_filter")
-        na_filter = self.controller.register_read("na_filter")
-	print "ns_recv: "
-	for x in ns_recv:
-	    if x != 0 :
-		print x,
-	print ""
-	print "ns_filter: ",ns_filter
-	print "na_recv: ",na_recv
-	print "na_filter: ",na_filter
 
 if __name__ == "__main__":
     import sys

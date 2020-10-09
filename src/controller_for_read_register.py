@@ -8,13 +8,6 @@ from p4utils.utils.sswitch_API import SimpleSwitchAPI
 #from p4utils.utils.runtime_API import RuntimeAPI
 from scapy.all import Ether, sniff, Packet, BitField
 
-# https://github.com/nsg-ethz/p4-learning/blob/master/exercises/04-L2_Learning/l2_learning_controller.py
-# https://github.com/nsg-ethz/p4-learning/blob/master/documentation/simple-switch.md#cloning-packets
-
-class CpuHeader(Packet):
-    name = 'CpuPacket'
-    fields_desc = [BitField('macAddr',0,48), BitField('ingress_port', 0, 16)]
-
 class L2Controller(object):
 
     def __init__(self, sw_name):
@@ -38,79 +31,31 @@ class L2Controller(object):
         if self.cpu_port:
             self.controller.mirroring_add(100, self.cpu_port)
 
-    def fill_mac_query_table_test(self):
-        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:01'], ['1'])
-        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:02'], ['2'])
-        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:03'], ['3'])
-        self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:04'], ['4'])
-    
-    def mac_learn(self, learning_data):
-        for mac_addr, ingress_port in  learning_data:
-            print "mac: %012X ingress_port: %s " % (mac_addr, ingress_port)
-            self.controller.table_add("mac_query", "set_mac_in", [str(mac_addr)])
-            self.controller.table_add("mac_forward", "modify_egress_spec", [str(mac_addr)], [str(ingress_port)])
-    
-    def ipv6_learn(self,learning_data):
-        for target_address, index in learning_data:
-            print "target_address: %012X index: %s " % (target_address, index)
-            self.controller.table_add("target_address_query","set_target_address_in",[str(target_address)],[str(index)])
-
-    def unpack_digest(self, msg, num_samples):
-        digest = []
-        print len(msg), num_samples
-        starting_index = 32
-        for sample in range(num_samples):
-            mac0, mac1, ingress_port = struct.unpack(">LHH", msg[starting_index:starting_index+8])
-            starting_index +=8
-            mac_addr = (mac0 << 16) + mac1
-            digest.append((mac_addr, ingress_port))
-
-        return digest
-
-    def recv_msg_digest(self, msg):
-        topic, device_id, ctx_id, list_id, buffer_id, num = struct.unpack("<iQiiQi",
-                                                                          msg[:32])
-        digest = self.unpack_digest(msg, num)
-        print "digest:",digest
-        self.mac_learn(digest)
-
-        #Acknowledge digest
-        self.controller.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
-
-    def run_digest_loop(self):
-        sub = nnpy.Socket(nnpy.AF_SP, nnpy.SUB)
-        #notifications_socket = self.controller.client.bm_mgmt_get_info().notifications_socket
-        #notifications_socket = "ipc:///tmp/bmv2-0-notifications.ipc"
-        #sub.connect(notifications_socket)
-        sub.connect('ipc:///tmp/bmv2-0-notifications.ipc')
-        sub.setsockopt(nnpy.SUB, nnpy.SUB_SUBSCRIBE, '')
-
-        while True:
-            msg = sub.recv()
-            #print "msg:",msg
-            self.recv_msg_digest(msg)
-
-    def recv_msg_cpu(self, pkt):
-        packet = Ether(str(pkt))
-        if packet.type == 0x1234:
-            cpu_header = CpuHeader(packet.payload)
-            self.learn([(cpu_header.macAddr, cpu_header.ingress_port)])
-
-    '''
-    def run_cpu_port_loop(self):
-        cpu_port_intf = str(self.topo.get_cpu_port_intf(self.sw_name).replace("eth0", "eth1"))
-        sniff(iface=cpu_port_intf, prn=self.recv_msg_cpu)
-    '''
-
     def read_register(self):
         ns_recv = self.controller.register_read("ns_recv")
         na_recv = self.controller.register_read("na_recv")
         ns_filter = self.controller.register_read("ns_filter")
         na_filter = self.controller.register_read("na_filter")
-	print "ns_recv: ",ns_recv
-	print "ns_filter: ",ns_filter
-	print "na_recv: ",na_recv
-	print "na_filter: ",na_filter
+        ns_recv_no_zero = []
+        for x in ns_recv:
+            if x!= 0:
+                ns_recv_no_zero.append(x)
+        na_recv_no_zero = []
+        for x in na_recv:
+            if x!= 0:
+                na_recv_no_zero.append(x)
+        ns_filter_no_zero = []
+        for x in ns_filter:
+            if x!= 0:
+                ns_filter_no_zero.append(x)
+        na_filter_no_zero = []
+        for x in na_filter:
+            if x!= 0:
+                na_filter_no_zero.append(x)
+        print "ns_recv: ",ns_recv_no_zero
+        print "ns_filter: ",ns_filter_no_zero
+        print "na_recv: ",na_recv_no_zero
+        print "na_filter: ",na_filter_no_zero
 
 if __name__ == "__main__":
     sw_name = sys.argv[1]

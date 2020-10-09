@@ -35,7 +35,6 @@ const bit<32> NA_FILTER_SUM = 7;
 typedef bit<48> MacAddress;
 typedef bit<128> IPv6Address;
 typedef bit<64> HalfIPv6Address;
-// typedef bit<128> TargetAddress;
 typedef bit<8> AddrState;
 
 header ethernet_h {
@@ -111,7 +110,7 @@ parser MyParser(packet_in                 packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType){
             TYPE_IPV6: parse_ipv6;
-            default: accept; /* what happens in reject state is defined by an architecture */
+            default: accept; 
         }
     }
 
@@ -126,11 +125,6 @@ parser MyParser(packet_in                 packet,
     state parse_icmpv6 {
         packet.extract(hdr.icmpv6);
         transition accept;
-        /*transition select(hdr.icmpv6.type){
-            TYPE_NS: accept;
-            TYPE_NA: accept;
-            default: accept;
-        }*/
     }
 }
 
@@ -222,10 +216,7 @@ control MyIngress(inout my_headers_t hdr,
     }
 
     action multicast(){
-        // standard_metadata.mcast_grp=1;
-        // hdr.ipv6.src = 0xffffffff;
-        standard_metadata.egress_spec = 1;
-        // hdr.ethernet.dst = hdr.ethernet.src;
+        standard_metadata.egress_spec = 2;
     }
 
     action verify_source(){
@@ -237,10 +228,6 @@ control MyIngress(inout my_headers_t hdr,
         }else{
             meta.src_state=SRC_NOT_IN_PORT_ENTRY;
         }
-    }
-
-    action notify_controller_build_mac_port(){
-        /* transfer standard_metadata.ingress_port,hdr.ethernet.src parameter */
     }
 
     /* Code */
@@ -262,12 +249,6 @@ control MyIngress(inout my_headers_t hdr,
                 ns_recv_for_dad_sum = ns_recv_for_dad_sum + 1;
                 statistics.write(NS_RECV_FOR_DAD_SUM,ns_recv_for_dad_sum);
 
-                // https://github.com/nsg-ethz/p4-learning/blob/master/documentation/simple-switch.md#cloning-packets
-                
-                // mirroring_add 100 7 (Add mirroring session using the CLI or API)
-
-                // clone(CloneType.I2E,100);
-
                 // mac address learn 
                 if(!mac_query.apply().hit){
                     meta.mac_digest.mac=hdr.ethernet.src;
@@ -278,11 +259,9 @@ control MyIngress(inout my_headers_t hdr,
                     build_binding_entry(); // Build port and ipv6 binding
                     meta.ipv6_digest.ipv6=hdr.icmpv6.target_address;
                     meta.ipv6_digest.index=(bit<8>)standard_metadata.ingress_port;
-                    //digest(1,meta.ipv6_digest); 
+                    digest(1,meta.ipv6_digest); 
                 }
-                hdr.ipv6.src=0xffffffff;
                 multicast();
-
             }else{
                 // Calculate ns recv for not dad sum 
                 bit<64> ns_recv_for_not_dad_sum;
@@ -304,7 +283,6 @@ control MyIngress(inout my_headers_t hdr,
                         drop();
                     }
                 }
-                hdr.ipv6.src=0xfffffffe;
                 if(hdr.ethernet.dst==MULTICAST_ADDR){
                     multicast();
                 }else{
@@ -334,7 +312,6 @@ control MyIngress(inout my_headers_t hdr,
                         drop();
                     }
                     else{
-                        /*verify_target_address();*/
                         if(meta.target_address_state==TARGET_ADDRESS_IN_TARGET_ADDRESS_QUERY_TABLE){
 
                             // Calculate na recv for dad sum
@@ -354,10 +331,8 @@ control MyIngress(inout my_headers_t hdr,
                                     port_ipv6_state.write((bit<32>)meta.index,ADDR_DEPRECATED);
                                 }
                             }
-                            hdr.ipv6.src=0xfffffffd;
                         }
                         else{
-                            hdr.ipv6.src=0xfffffffc;
                             // Calculate na recv for not dad sum
                             bit<64> na_recv_for_not_dad_sum;
                             statistics.read(na_recv_for_not_dad_sum,NA_RECV_FOR_NOT_DAD_SUM);
@@ -402,7 +377,6 @@ control MyEgress(inout my_headers_t hdr,
 
 control MyComputeChecksum(inout my_headers_t hdr, inout my_metadata_t meta){
     apply {
-
     }
 }
 
