@@ -52,10 +52,10 @@ class L2Controller(object):
         for x in na_filter:
             if x!= 0:
                 na_filter_no_zero.append(x)
-        print "ns_recv: ",ns_recv_no_zero
-        print "ns_filter: ",ns_filter_no_zero
-        print "na_recv: ",na_recv_no_zero
-        print "na_filter: ",na_filter_no_zero
+        print "ns_recv: ",len(ns_recv_no_zero),ns_recv_no_zero
+        print "ns_filter: ",len(ns_filter_no_zero),ns_filter_no_zero
+        print "na_recv: ",len(na_recv_no_zero),na_recv_no_zero
+        print "na_filter: ",len(na_filter_no_zero),na_filter_no_zero
 
 if __name__ == "__main__":
     sw_name = sys.argv[1]

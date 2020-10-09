@@ -5,7 +5,7 @@ from scapy.all import *
 import random
 import datetime
 
-ifaceName = "enp0s31f6"
+ifaceName = ["enp0s31f6","docker0"]
 
 globalSrcAddr = "2001:db8:0:1:c0bc:a2a0:21d6:6a0b"
 globalDstAddr = "ff02::1"
@@ -68,7 +68,7 @@ def forge_ns_pkt_with_fake_src(target_address):
     a=IPv6(src=linkFakeSrc, dst='ff02::1:ff21:41f')
     b=ICMPv6ND_NS(tgt=target_address)
     print "send NS packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)  
+    sendp(ether/a/b,iface=ifaceName[0])  
 
 def na_pkt(target_address):
     #segment = target_address.split(":")
@@ -85,34 +85,34 @@ def na_pkt(target_address):
 
     b=ICMPv6ND_NA(tgt=target_address)
     print "send NA packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    sendp(ether/a/b,iface=ifaceName[0])
 
 def not_dad_na_pkt(target_address):
     ether=Ether(src=macSrcAddr,dst=macSrcAddr)
     a=IPv6(src=target_address, dst=linkDstAddr)
     b=ICMPv6ND_NA(tgt=target_address)
     print "send NA packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    sendp(ether/a/b,iface=ifaceName[0])
 
 def forge_na_pkt_with_diff_src_tgr(target_address):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src=linkFakeSrc, dst=linkDstAddr)
     b=ICMPv6ND_NA(tgt=target_address)
     print "send NA packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    sendp(ether/a/b,iface=ifaceName[0])
 
 if __name__ == "__main__":
     if len(sys.argv)>1:
         if sys.argv[1] == "ns":
-            sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=3)
+            sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName[0],count=3)
         if sys.argv[1] == "na":
-            sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=3)
+            sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName[0],count=3)
         if sys.argv[1] == "ns-not-dad":
-            sniff(filter="ip6",prn=send_not_dad_ns_pkt,iface=ifaceName,count=3)
+            sniff(filter="ip6",prn=send_not_dad_ns_pkt,iface=ifaceName[0],count=3)
         if sys.argv[1] == "na-not-dad":
-            sniff(filter="ip6",prn=send_not_dad_na_pkt,iface=ifaceName,count=3)
+            sniff(filter="ip6",prn=send_not_dad_na_pkt,iface=ifaceName[0],count=3)
         if sys.argv[1] == "dos":
-            sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName,count=3)
+            sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName[0],count=3)
     else:
 	start = datetime.datetime.now()
 	ns_time = []
@@ -123,24 +123,25 @@ if __name__ == "__main__":
 	na_num = 0
 	pkt_sum = 100
         while True:
-            way = random.randint(0,4)
+            way = random.randint(0,3)
+	    ifIdx = random.randint(0,1)
 	    if ns_num < pkt_sum: 
             	if way==0:
 		    ns_time.append((datetime.datetime.now()-start).seconds*1000)
-                    sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=1)
+                    sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName[ifIdx],count=1)
 		    ns_num += 1
                 if way==1:
 		    forge_ns_time.append((datetime.datetime.now()-start).seconds*1000)
-                    sniff(filter="ip6",prn=send_forge_ns_pkt,iface=ifaceName,count=1)
+                    sniff(filter="ip6",prn=send_forge_ns_pkt,iface=ifaceName[ifIdx],count=1)
 		    ns_num += 1
             if na_num < pkt_sum:
 	        if way==2:
 		    na_time.append((datetime.datetime.now()-start).seconds*1000)
-                    sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=1)
+                    sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName[ifIdx],count=1)
 		    na_num += 1
                 if way==3:
 		    forge_na_time.append((datetime.datetime.now()-start).seconds*1000)
-                    sniff(filter="ip6",prn=send_forge_na_pkt,iface=ifaceName,count=1)
+                    sniff(filter="ip6",prn=send_forge_na_pkt,iface=ifaceName[ifIdx],count=1)
 		    na_num += 1
 	    if ns_num >= pkt_sum and na_num >= pkt_sum:
 		break

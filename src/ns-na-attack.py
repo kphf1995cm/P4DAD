@@ -54,7 +54,7 @@ if __name__ == "__main__":
 	forge_na_time = []
 	ns_num = 0
 	na_num = 0
-	pkt_sum = 100
+	pkt_sum = 200
 	while True:
 		way = random.randint(0,3)
 		ifIdx = random.randint(0,1)
@@ -78,10 +78,10 @@ if __name__ == "__main__":
 				na_num += 1
 		if ns_num >= pkt_sum and na_num >= pkt_sum:
 			break
-		#sleep_time = random.randint(0,10)
-		#time.sleep(0.01*sleep_time)
-	print "ns_time:",ns_time
-	print "na_time:",na_time
-	print "forge_ns_time:",forge_ns_time
-	print "forge_na_time:",forge_na_time
+		sleep_time = random.randint(0,10)
+		time.sleep(0.1*sleep_time)
+	print "ns_time:",len(ns_time),ns_time
+	print "na_time:",len(na_time),na_time
+	print "forge_ns_time:",len(forge_ns_time),forge_ns_time
+	print "forge_na_time:",len(forge_na_time),forge_na_time
 

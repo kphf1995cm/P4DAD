@@ -67,8 +67,9 @@ class L2Controller(object):
         topic, device_id, ctx_id, list_id, buffer_id, num = struct.unpack("<iQiiQi",
                                                                           msg[:32])
         digest = self.unpack_digest(msg, num)
-        print "digest:",digest
-        if len(digest) == 8:
+        print "digest:",digest," digest len:",len(digest)
+        mac_learn_flag = False
+        if mac_learn_flag :
             self.mac_learn(digest)
         else:
             self.ipv6_learn(digest)
