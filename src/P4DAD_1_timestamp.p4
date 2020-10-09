@@ -266,7 +266,7 @@ control MyIngress(inout my_headers_t hdr,
                 
                 // mirroring_add 100 7 (Add mirroring session using the CLI or API)
 
-                clone(CloneType.I2E,100);
+                // clone(CloneType.I2E,100);
 
                 // mac address learn 
                 if(!mac_query.apply().hit){

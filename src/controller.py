@@ -1,8 +1,13 @@
 import nnpy
 import struct
+import keyboard
 from p4utils.utils.topology import Topology
 from p4utils.utils.sswitch_API import SimpleSwitchAPI
+#from p4utils.utils.runtime_API import RuntimeAPI
 from scapy.all import Ether, sniff, Packet, BitField
+
+# https://github.com/nsg-ethz/p4-learning/blob/master/exercises/04-L2_Learning/l2_learning_controller.py
+# https://github.com/nsg-ethz/p4-learning/blob/master/documentation/simple-switch.md#cloning-packets
 
 class CpuHeader(Packet):
     name = 'CpuPacket'
@@ -11,7 +16,6 @@ class CpuHeader(Packet):
 class L2Controller(object):
 
     def __init__(self, sw_name):
-
         #self.topo = Topology(db="topology.db")
         self.sw_name = sw_name
         self.thrift_port = 9090
@@ -23,85 +27,14 @@ class L2Controller(object):
         self.init()
 
     def init(self):
-
         self.controller.reset_state()
         #self.add_boadcast_groups()
         self.add_mirror()
         #self.fill_table_test()
 
     def add_mirror(self):
-
         if self.cpu_port:
             self.controller.mirroring_add(100, self.cpu_port)
-
-    '''
-    def add_boadcast_groups(self):
-
-        interfaces_to_port = self.topo[self.sw_name]["interfaces_to_port"].copy()
-        #filter lo and cpu port
-        interfaces_to_port.pop('lo', None)
-        interfaces_to_port.pop(self.topo.get_cpu_port_intf(self.sw_name), None)
-
-        mc_grp_id = 1
-        rid = 0
-        for ingress_port in interfaces_to_port.values():
-
-            port_list = interfaces_to_port.values()[:]
-            del(port_list[port_list.index(ingress_port)])
-
-            #add multicast group
-            self.controller.mc_mgrp_create(mc_grp_id)
-
-            #add multicast node group
-            handle = self.controller.mc_node_create(rid, port_list)
-
-            #associate with mc grp
-            self.controller.mc_node_associate(mc_grp_id, handle)
-
-            #fill broadcast table
-            self.controller.table_add("broadcast", "set_mcast_grp", [str(ingress_port)], [str(mc_grp_id)])
-
-            mc_grp_id +=1
-            rid +=1
-    '''
-
-    '''
-    table mac_query {
-        key = {
-            hdr.ethernet.src : exact;
-        }
-        actions = {
-            set_mac_in;
-            set_mac_not_in;
-        }
-        const default_action = set_mac_not_in;
-        size = 1024;
-    }
-
-    table mac_forward {
-        key = {
-            hdr.ethernet.dst : exact;
-        }
-        actions = {
-            drop;
-            modify_egress_spec;
-        }
-        const default_action = drop;
-        size = 1024;
-    }
-
-    table target_address_query {
-        key = {
-            hdr.icmpv6.target_address : exact;
-        }
-        actions = {
-            set_target_address_in;
-            set_target_address_not_in;
-        }
-        const default_action = set_target_address_not_in;
-        size = 1024;
-    }
-    '''
 
     def fill_mac_query_table_test(self):
         self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:01'], ['1'])
@@ -109,24 +42,18 @@ class L2Controller(object):
         self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:03'], ['3'])
         self.controller.table_add("mac_forward", "modify_egress_spec", ['00:00:0a:00:00:04'], ['4'])
     
-
-
-
     def mac_learn(self, learning_data):
-
         for mac_addr, ingress_port in  learning_data:
             print "mac: %012X ingress_port: %s " % (mac_addr, ingress_port)
             self.controller.table_add("mac_query", "set_mac_in", [str(mac_addr)])
             self.controller.table_add("mac_forward", "modify_egress_spec", [str(mac_addr)], [str(ingress_port)])
     
     def ipv6_learn(self,learning_data):
-
         for target_address, index in learning_data:
             print "target_address: %012X index: %s " % (target_address, index)
             self.controller.table_add("target_address_query","set_target_address_in",[str(target_address)],[str(index)])
 
     def unpack_digest(self, msg, num_samples):
-
         digest = []
         print len(msg), num_samples
         starting_index = 32
@@ -139,7 +66,6 @@ class L2Controller(object):
         return digest
 
     def recv_msg_digest(self, msg):
-
         topic, device_id, ctx_id, list_id, buffer_id, num = struct.unpack("<iQiiQi",
                                                                           msg[:32])
         digest = self.unpack_digest(msg, num)
@@ -150,7 +76,6 @@ class L2Controller(object):
         self.controller.client.bm_learning_ack_buffer(ctx_id, list_id, buffer_id)
 
     def run_digest_loop(self):
-
         sub = nnpy.Socket(nnpy.AF_SP, nnpy.SUB)
         #notifications_socket = self.controller.client.bm_mgmt_get_info().notifications_socket
         #notifications_socket = "ipc:///tmp/bmv2-0-notifications.ipc"
@@ -164,25 +89,38 @@ class L2Controller(object):
             self.recv_msg_digest(msg)
 
     def recv_msg_cpu(self, pkt):
-
         packet = Ether(str(pkt))
-
         if packet.type == 0x1234:
             cpu_header = CpuHeader(packet.payload)
             self.learn([(cpu_header.macAddr, cpu_header.ingress_port)])
+
     '''
     def run_cpu_port_loop(self):
-
         cpu_port_intf = str(self.topo.get_cpu_port_intf(self.sw_name).replace("eth0", "eth1"))
         sniff(iface=cpu_port_intf, prn=self.recv_msg_cpu)
     '''
+
+    def read_register(self):
+        ns_recv = self.controller.register_read("ns_recv")
+        na_recv = self.controller.register_read("na_recv")
+        ns_filter = self.controller.register_read("ns_filter")
+        na_filter = self.controller.register_read("na_filter")
+
+
+def click():
+    print "click keyboard"
 
 if __name__ == "__main__":
     import sys
     sw_name = sys.argv[1]
     receive_from = sys.argv[2]
     if receive_from == "digest":
-        controller = L2Controller(sw_name).run_digest_loop()
+        controller = L2Controller(sw_name)
+        # controller.run_digest_loop()
+        keyboard.add_hotkey('esc',click)
+        keyboard.wait()
+        controller.read_register()
+
     '''
     elif receive_from == "cpu":
         controller = L2Controller(sw_name).run_cpu_port_loop()

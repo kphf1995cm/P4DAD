@@ -114,40 +114,40 @@ if __name__ == "__main__":
         if sys.argv[1] == "dos":
             sniff(filter="ip6",prn=dos_on_dad,iface=ifaceName,count=3)
     else:
-	start = datetime.datetime.now()
-	ns_time = []
-	forge_ns_time = []
-	na_time = []
-	forge_na_time = []
-	ns_num = 0
-	na_num = 0
-	pkt_sum = 10
+		start = datetime.datetime.now()
+		ns_time = []
+		forge_ns_time = []
+		na_time = []
+		forge_na_time = []
+		ns_num = 0
+		na_num = 0
+		pkt_sum = 10
         while True:
             way = random.randint(0,4)
-	    if ns_num < pkt_sum: 
+	    	if ns_num < pkt_sum: 
             	if way==0:
-		    ns_time.append((datetime.datetime.now()-start).seconds*1000)
+		    		ns_time.append((datetime.datetime.now()-start).seconds*1000)
                     sniff(filter="ip6",prn=send_ns_pkt,iface=ifaceName,count=1)
-		    ns_num += 1
+		    		ns_num += 1
                 if way==1:
-		    forge_ns_time.append((datetime.datetime.now()-start).seconds*1000)
+		    		forge_ns_time.append((datetime.datetime.now()-start).seconds*1000)
                     sniff(filter="ip6",prn=send_forge_ns_pkt,iface=ifaceName,count=1)
-		    ns_num += 1
+		    		ns_num += 1
             if na_num < pkt_sum:
-	        if way==2:
-		    na_time.append((datetime.datetime.now()-start).seconds*1000)
+	        	if way==2:
+		    		na_time.append((datetime.datetime.now()-start).seconds*1000)
                     sniff(filter="ip6",prn=send_na_pkt,iface=ifaceName,count=1)
-		    na_num += 1
+		    		na_num += 1
                 if way==3:
-		    forge_na_time.append((datetime.datetime.now()-start).seconds*1000)
+		    		forge_na_time.append((datetime.datetime.now()-start).seconds*1000)
                     sniff(filter="ip6",prn=send_forge_na_pkt,iface=ifaceName,count=1)
-		    na_num += 1
-	    if ns_num >= pkt_sum and na_num >= pkt_sum:
-		break
-	    sleep_time = random.randint(0,10)
-	    time.sleep(0.01*sleep_time)
-	print "ns_time:",ns_time
-	print "na_time:",na_time
-	print "forge_ns_time:",forge_ns_time
-	print "forge_na_time:",forge_na_time
+		    		na_num += 1
+	    		if ns_num >= pkt_sum and na_num >= pkt_sum:
+					break
+	    	sleep_time = random.randint(0,10)
+	    	time.sleep(0.01*sleep_time)
+			print "ns_time:",ns_time
+			print "na_time:",na_time
+			print "forge_ns_time:",forge_ns_time
+			print "forge_na_time:",forge_na_time
 

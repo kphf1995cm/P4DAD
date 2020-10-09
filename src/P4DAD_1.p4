@@ -235,21 +235,6 @@ control MyIngress(inout my_headers_t hdr,
         }
     }
 
-    /*action verify_target_address(){
-        bit<32> index;
-        index = (bit<32>)standard_metadata.ingress_port;
-        IPv6Address ipv6;
-        AddrState addr_state;
-        port_ipv6.read(ipv6,index);
-        if(ipv6==hdr.icmpv6.target_address){ 
-            port_ipv6_state.read(addr_state,index);
-            if(addr_state==ADDR_TENTATIVE){
-                port_ipv6.write(index,0);
-                port_ipv6_state.write(index,ADDR_DEPRECATED);
-            }
-        }
-    }*/
-
     action notify_controller_build_mac_port(){
         /* transfer standard_metadata.ingress_port,hdr.ethernet.src parameter */
     }
@@ -271,6 +256,12 @@ control MyIngress(inout my_headers_t hdr,
                 statistics.read(ns_recv_for_dad_sum,NS_RECV_FOR_DAD_SUM);
                 ns_recv_for_dad_sum = ns_recv_for_dad_sum + 1;
                 statistics.write(NS_RECV_FOR_DAD_SUM,ns_recv_for_dad_sum);
+
+                // https://github.com/nsg-ethz/p4-learning/blob/master/documentation/simple-switch.md#cloning-packets
+                
+                // mirroring_add 100 7 (Add mirroring session using the CLI or API)
+
+                clone(CloneType.I2E,100);
 
                 // mac address learn 
                 if(!mac_query.apply().hit){
