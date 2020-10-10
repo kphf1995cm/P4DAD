@@ -246,8 +246,9 @@ control MyIngress(inout my_headers_t hdr,
                 if(!mac_query.apply().hit){
                     meta.mac_digest.mac=hdr.ethernet.src;
                     meta.mac_digest.port=(bit<16>)standard_metadata.ingress_port;
-                    digest(1,meta.mac_digest); // Packet Digests to controller
-                    //clone(CloneType.I2E,100);
+                    //digest(1,meta.mac_digest); // Packet Digests to controller
+                    //clone3(CloneType.E2E,100,{standard_metadata});
+                    //clone(CloneType.E2E,100);
                 }
                 if(meta.target_address_state==TARGET_ADDRESS_NOT_IN_TARGET_ADDRESS_QUERY_TABLE){
                     build_binding_entry(); // Build port and ipv6 binding
@@ -360,6 +361,7 @@ control MyEgress(inout my_headers_t hdr,
         timestamp = standard_metadata.egress_global_timestamp-standard_metadata.ingress_global_timestamp;
         hdr.icmpv6.reserved = (bit<32>)timestamp;
         hdr.ethernet.dst = (bit<48>)standard_metadata.ingress_global_timestamp;
+	clone(CloneType.E2E,100);
     }
 }
 

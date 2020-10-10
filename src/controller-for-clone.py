@@ -71,6 +71,7 @@ class L2Controller(object):
         sub = nnpy.Socket(nnpy.AF_SP, nnpy.SUB)
         sub.connect('ipc:///tmp/bmv2-0-notifications.ipc')
         sub.setsockopt(nnpy.SUB, nnpy.SUB_SUBSCRIBE, '')
+	print "run_digest_loop"
 
         while True:
             msg = sub.recv()
@@ -91,8 +92,9 @@ if __name__ == "__main__":
     import sys
     sw_name = sys.argv[1]
     receive_from = sys.argv[2]
-    controller = L2Controller(sw_name)
     if receive_from == "digest":
+        controller = L2Controller(sw_name)
         controller.run_digest_loop()
     elif receive_from == "cpu":
+        controller = L2Controller(sw_name)
         controller.run_cpu_port_loop()

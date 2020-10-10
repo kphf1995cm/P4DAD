@@ -29,6 +29,8 @@ def send_ns_pkt(ifaceName):
 	sendp(ether/a/b,iface=ifaceName)
 
 if __name__ == "__main__":
+	#for i in range(5) :
+	#	send_dad_ns_pkt(ifaceNames[0])
 	send_dad_ns_pkt(ifaceNames[0])
 	while True:
 		send_ns_pkt(ifaceNames[0])
