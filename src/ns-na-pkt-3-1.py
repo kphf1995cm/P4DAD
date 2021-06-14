@@ -23,28 +23,28 @@ def send_ns_pkt(target_address,ifaceName):
     a=IPv6(src="::", dst='ff02::1:ff21:41f')
     b=ICMPv6ND_NS(tgt=target_address)
     print "send NS packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    sendp(ether/a/b,count=1,iface=ifaceName)
 
 def send_forge_ns_pkt(target_address,ifaceName):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src=linkFakeSrc, dst='ff02::1:ff21:41f')
     b=ICMPv6ND_NS(tgt=target_address)
-    print "send NS packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)  
+    print "send forge NS packet target address:",target_address
+    sendp(ether/a/b,count=1,iface=ifaceName)  
 
 def send_na_pkt(target_address,ifaceName):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src=target_address, dst=linkDstAddr)
     b=ICMPv6ND_NA(tgt=target_address)
     print "send NA packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    sendp(ether/a/b,count=1,iface=ifaceName)
 
 def send_forge_na_pkt(target_address,ifaceName):
     ether=Ether(src=macSrcAddr,dst=macMultiAddr)
     a=IPv6(src=linkFakeSrc, dst=linkDstAddr)
     b=ICMPv6ND_NA(tgt=target_address)
-    print "send NA packet target address:",target_address
-    sendp(ether/a/b,iface=ifaceName)
+    print "send forge NA packet target address:",target_address
+    sendp(ether/a/b,count=1,iface=ifaceName)
 
 if __name__ == "__main__":
     start = datetime.datetime.now()
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     normal_pkt_sum = 150
     while True:
         way = random.randint(0,7)
-        ifIdx = random.randint(0,1)
+        ifIdx = 0
         if way>=0 and way <3 and ns_num < normal_pkt_sum:
             ns_time.append((datetime.datetime.now()-start).seconds*1000)
             send_ns_pkt(linkSrcAddr,ifaceNames[ifIdx])
@@ -79,7 +79,7 @@ if __name__ == "__main__":
             forge_na_num += 1
         if ns_num >= normal_pkt_sum and na_num >= normal_pkt_sum and forge_ns_num >= forge_pkt_sum and forge_na_num >=forge_pkt_sum:
             break
-        sleep_time = random.randint(0,7)
+        sleep_time = random.randint(5,10)
         time.sleep(0.1*sleep_time)
     print "ns_time:",len(ns_time),ns_time
     print "na_time:",len(na_time),na_time
